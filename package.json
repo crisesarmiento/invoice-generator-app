@@ -1,0 +1,21 @@
+{
+  "name": "invoice-generator-app",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "format": "turbo format"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.6"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "pipeline": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^lint"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^test"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": [
+        "^test:e2e"
+      ]
+    },
+    "format": {
+      "dependsOn": [
+        "^format"
+      ]
+    }
+  }
+}
