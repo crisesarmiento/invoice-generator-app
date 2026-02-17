@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { type FormEventHandler, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -55,6 +55,8 @@ type InvoiceFormProps = {
     items: InvoiceItem[];
   };
 };
+
+type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
 
 const emptyItem = (): InvoiceItem => ({
   description: "",
@@ -122,7 +124,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
   const removeItem = (index: number) =>
     setItems((prev) => prev.filter((_, idx) => idx !== index));
 
-  const submitInvoice = (event: React.FormEvent<HTMLFormElement>) => {
+  const submitInvoice = (event: FormSubmitEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -155,7 +157,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
     });
   };
 
-  const createClient = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createClient = async (event: FormSubmitEvent) => {
     event.preventDefault();
     const formElement = event.currentTarget;
     const formData = new FormData(event.currentTarget);

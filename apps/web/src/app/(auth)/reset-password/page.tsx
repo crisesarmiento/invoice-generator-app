@@ -1,6 +1,11 @@
 "use client";
 
-import { Suspense, useState, useTransition } from "react";
+import {
+  Suspense,
+  type FormEventHandler,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -10,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
+
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -17,7 +24,7 @@ function ResetPasswordContent() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const password = String(formData.get("password") ?? "");
