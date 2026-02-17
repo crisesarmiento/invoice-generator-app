@@ -39,6 +39,7 @@ jobs:
             }
 
             const errors = [];
+            const warnings = [];
             const body = (pr.body || "").trim();
             const labels = (pr.labels || [])
               .map((label) => String(label.name || "").toLowerCase())
@@ -132,9 +133,11 @@ jobs:
               return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
             };
 
-            const retryEligibleActions = new Set(["opened", "reopened", "labeled"]);
+            // These actions are also handled by project-auto-add in a separate workflow.
+            // Enforcement is deferred on these triggers to avoid non-deterministic ordering races.
+            const autoAddOverlapActions = new Set(["opened", "reopened", "labeled"]);
             const action = String(context.payload.action || "").toLowerCase();
-            const maxAttempts = retryEligibleActions.has(action)
+            const maxAttempts = autoAddOverlapActions.has(action)
               ? parsePositiveInt(process.env.PROJECT_MEMBERSHIP_RETRY_ATTEMPTS, 6)
               : 1;
             const retryDelayMs = parseNonNegativeInt(
@@ -166,9 +169,16 @@ jobs:
               }
 
               if (!hasRequiredProject) {
-                errors.push(
-                  `Pull request must be added to project: \"${process.env.REQUIRED_PROJECT_TITLE}\".`,
-                );
+                const message =
+                  `Pull request must be added to project: \"${process.env.REQUIRED_PROJECT_TITLE}\".`;
+
+                if (autoAddOverlapActions.has(action)) {
+                  warnings.push(
+                    `${message} Validation on '${action}' deferred to a later PR metadata event because project auto-add runs concurrently.`,
+                  );
+                } else {
+                  errors.push(message);
+                }
               }
             } catch (error) {
               errors.push(
@@ -185,7 +195,11 @@ jobs:
               return;
             }
 
-            await core.summary
-              .addHeading("PR Metadata Validation Passed")
+            const summary = core.summary.addHeading("PR Metadata Validation Passed");
+            if (warnings.length > 0) {
+              summary.addHeading("Deferred checks", 2).addList(warnings);
+              warnings.forEach((warning) => core.notice(warning));
+            }
+            await summary
               .addRaw("All required PR metadata fields are present and aligned with project conventions.")
               .write();
