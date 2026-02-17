@@ -1,0 +1,283 @@
+name: Linear Issue Sync
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - edited
+      - closed
+      - labeled
+      - milestoned
+      - demilestoned
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-github-issue-to-linear:
+    runs-on: ubuntu-latest
+    env:
+      LINEAR_API_URL: https://api.linear.app/graphql
+      LINEAR_SYNC_LABEL_PREFIXES: "area/,type/,effort/"
+      LINEAR_SYNC_LABEL_EXACT: "roadmap"
+    steps:
+      - name: Validate Linear sync settings
+        run: |
+          test -n "${{ secrets.LINEAR_API_KEY }}" || { echo "Missing repo secret: LINEAR_API_KEY"; exit 1; }
+          test -n "${{ vars.LINEAR_TEAM_ID }}" || { echo "Missing repo variable: LINEAR_TEAM_ID"; exit 1; }
+          test -n "${{ vars.LINEAR_PROJECT_ID }}" || { echo "Missing repo variable: LINEAR_PROJECT_ID"; exit 1; }
+
+      - name: Sync issue with Linear
+        uses: actions/github-script@v7
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ vars.LINEAR_TEAM_ID }}
+          LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+            if (!issue) {
+              core.info("No issue payload found.");
+              return;
+            }
+
+            const exactLabels = (process.env.LINEAR_SYNC_LABEL_EXACT || "")
+              .split(",")
+              .map((v) => v.trim().toLowerCase())
+              .filter(Boolean);
+            const labelPrefixes = (process.env.LINEAR_SYNC_LABEL_PREFIXES || "")
+              .split(",")
+              .map((v) => v.trim().toLowerCase())
+              .filter(Boolean);
+            const issueLabels = (issue.labels || [])
+              .map((label) => String(label.name || "").toLowerCase())
+              .filter(Boolean);
+
+            const isRoadmapIssue = issueLabels.some(
+              (name) =>
+                exactLabels.includes(name) ||
+                labelPrefixes.some((prefix) => name.startsWith(prefix)),
+            );
+
+            if (!isRoadmapIssue) {
+              core.info("Skipping issue: does not match Linear sync label rules.");
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = issue.number;
+            const issueUrl = issue.html_url;
+            const markerRegex = /<!--\s*linear_issue_id:\s*([a-z0-9-]+)\s*-->/i;
+
+            const extractLinearId = (text) => {
+              if (!text) return null;
+              const match = text.match(markerRegex);
+              return match ? match[1] : null;
+            };
+
+            const linearRequest = async (query, variables = {}) => {
+              const response = await fetch(process.env.LINEAR_API_URL, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: process.env.LINEAR_API_KEY,
+                },
+                body: JSON.stringify({ query, variables }),
+              });
+
+              if (!response.ok) {
+                const body = await response.text();
+                throw new Error(`Linear API HTTP ${response.status}: ${body}`);
+              }
+
+              const payload = await response.json();
+              if (payload.errors?.length) {
+                throw new Error(`Linear API error: ${JSON.stringify(payload.errors)}`);
+              }
+              return payload.data;
+            };
+
+            const issueDescription = [
+              `GitHub issue: ${issueUrl}`,
+              "",
+              issue.body?.trim() ? issue.body.trim() : "_No description provided in GitHub issue._",
+            ].join("\n");
+            const githubMilestoneTitle = issue.milestone?.title || null;
+
+            const getProjectMilestoneIdByTitle = async (title) => {
+              if (!title) return null;
+              const data = await linearRequest(
+                `
+                query ProjectMilestones($id: String!) {
+                  project(id: $id) {
+                    projectMilestones {
+                      nodes {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+                `,
+                { id: process.env.LINEAR_PROJECT_ID },
+              );
+
+              const milestones = data.project?.projectMilestones?.nodes ?? [];
+              const match = milestones.find((milestone) => milestone.name === title);
+              return match?.id ?? null;
+            };
+
+            let linearIssueId = extractLinearId(issue.body);
+
+            if (!linearIssueId) {
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  per_page: 100,
+                },
+              );
+
+              for (const comment of comments) {
+                const found = extractLinearId(comment.body);
+                if (found) {
+                  linearIssueId = found;
+                  break;
+                }
+              }
+            }
+
+            const eventAction = context.payload.action;
+
+            if (!linearIssueId) {
+              if (!["opened", "reopened", "labeled"].includes(eventAction)) {
+                core.info(`No linked Linear issue found for action "${eventAction}". Skipping create.`);
+                return;
+              }
+
+              const createData = await linearRequest(
+                `
+                mutation CreateLinearIssue($input: IssueCreateInput!) {
+                  issueCreate(input: $input) {
+                    success
+                    issue {
+                      id
+                      identifier
+                      url
+                    }
+                  }
+                }
+                `,
+                {
+                  input: {
+                    teamId: process.env.LINEAR_TEAM_ID,
+                    projectId: process.env.LINEAR_PROJECT_ID,
+                    title: issue.title,
+                    description: issueDescription,
+                    projectMilestoneId: await getProjectMilestoneIdByTitle(githubMilestoneTitle),
+                  },
+                },
+              );
+
+              const created = createData.issueCreate?.issue;
+              if (!created?.id) {
+                throw new Error("Linear issue creation returned no issue ID.");
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: [
+                  `Linked Linear issue: ${created.url} (${created.identifier})`,
+                  `<!-- linear_issue_id: ${created.id} -->`,
+                ].join("\n"),
+              });
+
+              core.info(`Created and linked Linear issue ${created.identifier}`);
+              return;
+            }
+
+            if (eventAction === "closed" || eventAction === "reopened") {
+              const teamData = await linearRequest(
+                `
+                query TeamStates($id: String!) {
+                  team(id: $id) {
+                    states {
+                      nodes {
+                        id
+                        name
+                        type
+                      }
+                    }
+                  }
+                }
+                `,
+                { id: process.env.LINEAR_TEAM_ID },
+              );
+
+              const states = teamData.team?.states?.nodes ?? [];
+              const targetType = eventAction === "closed" ? "completed" : "unstarted";
+              const targetState =
+                states.find((state) => state.type === targetType) ??
+                states.find((state) =>
+                  eventAction === "closed"
+                    ? /done|complete/i.test(state.name)
+                    : /todo|backlog|triage/i.test(state.name),
+                );
+
+              if (!targetState?.id) {
+                throw new Error(`Could not find Linear state for action "${eventAction}".`);
+              }
+
+              await linearRequest(
+                `
+                mutation UpdateLinearIssueState($id: String!, $input: IssueUpdateInput!) {
+                  issueUpdate(id: $id, input: $input) {
+                    success
+                  }
+                }
+                `,
+                {
+                  id: linearIssueId,
+                  input: {
+                    stateId: targetState.id,
+                  },
+                },
+              );
+
+              core.info(`Updated Linear state for issue ${linearIssueId} -> ${targetState.name}`);
+            }
+
+            if (
+              eventAction === "edited" ||
+              eventAction === "milestoned" ||
+              eventAction === "demilestoned"
+            ) {
+              const projectMilestoneId = await getProjectMilestoneIdByTitle(
+                githubMilestoneTitle,
+              );
+              await linearRequest(
+                `
+                mutation UpdateLinearIssueContent($id: String!, $input: IssueUpdateInput!) {
+                  issueUpdate(id: $id, input: $input) {
+                    success
+                  }
+                }
+                `,
+                {
+                  id: linearIssueId,
+                  input: {
+                    title: issue.title,
+                    description: issueDescription,
+                    projectMilestoneId,
+                  },
+                },
+              );
+              core.info(`Updated content/milestone for Linear issue ${linearIssueId}`);
+            }
