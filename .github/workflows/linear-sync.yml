@@ -18,23 +18,32 @@ permissions:
 jobs:
   sync-github-issue-to-linear:
     runs-on: ubuntu-latest
+    concurrency:
+      group: linear-sync-issue-${{ github.event.issue.id }}
+      cancel-in-progress: false
     env:
       LINEAR_API_URL: https://api.linear.app/graphql
       LINEAR_SYNC_LABEL_PREFIXES: "area/,type/,effort/"
       LINEAR_SYNC_LABEL_EXACT: "roadmap"
+      LINEAR_AUTH_MODE: "api_key"
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      LINEAR_TEAM_ID: ${{ vars.LINEAR_TEAM_ID }}
+      LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
     steps:
       - name: Validate Linear sync settings
-        run: |
-          test -n "${{ secrets.LINEAR_API_KEY }}" || { echo "Missing repo secret: LINEAR_API_KEY"; exit 1; }
-          test -n "${{ vars.LINEAR_TEAM_ID }}" || { echo "Missing repo variable: LINEAR_TEAM_ID"; exit 1; }
-          test -n "${{ vars.LINEAR_PROJECT_ID }}" || { echo "Missing repo variable: LINEAR_PROJECT_ID"; exit 1; }
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const missing = [];
+            if (!process.env.LINEAR_API_KEY) missing.push("LINEAR_API_KEY secret");
+            if (!process.env.LINEAR_TEAM_ID) missing.push("LINEAR_TEAM_ID variable");
+            if (!process.env.LINEAR_PROJECT_ID) missing.push("LINEAR_PROJECT_ID variable");
+            if (missing.length > 0) {
+              core.setFailed(`Missing Linear sync configuration: ${missing.join(", ")}`);
+            }
 
       - name: Sync issue with Linear
         uses: actions/github-script@v7
-        env:
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-          LINEAR_TEAM_ID: ${{ vars.LINEAR_TEAM_ID }}
-          LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
         with:
           script: |
             const issue = context.payload.issue;
@@ -79,11 +88,17 @@ jobs:
             };
 
             const linearRequest = async (query, variables = {}) => {
+              const linearToken = String(process.env.LINEAR_API_KEY || "").trim();
+              const authMode = String(process.env.LINEAR_AUTH_MODE || "api_key").toLowerCase();
+              const authorization =
+                authMode === "bearer" && !/^bearer\s+/i.test(linearToken)
+                  ? `Bearer ${linearToken}`
+                  : linearToken;
               const response = await fetch(process.env.LINEAR_API_URL, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  Authorization: process.env.LINEAR_API_KEY,
+                  Authorization: authorization,
                 },
                 body: JSON.stringify({ query, variables }),
               });
