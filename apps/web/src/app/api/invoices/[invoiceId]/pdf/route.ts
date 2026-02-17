@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { renderToBuffer } from "@react-pdf/renderer";
+import { createElement } from "react";
 
 import { auth } from "@/auth";
 import { prisma } from "@invoice/db";
@@ -42,8 +43,8 @@ export const GET = async (
 
   const invoiceNumber = invoice.number.toString().padStart(3, "0");
   const pdfBuffer = await renderToBuffer(
-    <InvoicePdf
-      data={{
+    createElement(InvoicePdf, {
+      data: {
         invoiceNumber,
         issueDate: format(invoice.issueDate, "MMM dd, yyyy"),
         dueDate: format(invoice.dueDate, "MMM dd, yyyy"),
@@ -90,8 +91,8 @@ export const GET = async (
         total: formatCurrency(total),
         notes: invoice.notes,
         terms: invoice.terms,
-      }}
-    />,
+      },
+    }),
   );
 
   const clientSlug = sanitizeFilename(invoice.client.name) || "Client";

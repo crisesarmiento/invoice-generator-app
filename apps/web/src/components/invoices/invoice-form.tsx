@@ -66,14 +66,13 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [clientOptions, setClientOptions] = useState<ClientOption[]>(clients);
+  const initialIssueDate = invoice?.issueDate ?? new Date().toISOString().slice(0, 10);
   const [clientId, setClientId] = useState(invoice?.clientId ?? "");
-  const [issueDate, setIssueDate] = useState(
-    invoice?.issueDate ?? new Date().toISOString().slice(0, 10),
-  );
+  const [issueDate, setIssueDate] = useState(initialIssueDate);
   const [dueDate, setDueDate] = useState(
     invoice?.dueDate ??
       new Date(
-        Date.now() +
+        new Date(initialIssueDate).getTime() +
           (defaults.defaultDueDays ?? 14) * 24 * 60 * 60 * 1000,
       )
         .toISOString()
