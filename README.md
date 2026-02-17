@@ -94,7 +94,7 @@ pnpm --filter web exec playwright install
 - Ensure `AUTH_URL` and `NEXT_PUBLIC_APP_URL` match your deployment domain.
 
 ## SonarCloud (GitHub-native)
-This repo includes `.github/workflows/ci-sonar.yml` for CI plus SonarCloud analysis on pull requests and pushes to `main`.
+This repo includes `.github/workflows/ci-sonar.yml` for CI plus SonarCloud analysis on pull requests and pushes to `master`.
 
 Repository settings required:
 - Secret: `SONAR_TOKEN`

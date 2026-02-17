@@ -11,8 +11,6 @@ on:
       - unlabeled
       - assigned
       - unassigned
-      - milestoned
-      - demilestoned
 
 permissions:
   contents: read
