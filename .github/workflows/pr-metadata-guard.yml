@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REQUIRED_PROJECT_TITLE: "Invoice Scope Roadmap"
+      PROJECT_MEMBERSHIP_RETRY_ATTEMPTS: "6"
+      PROJECT_MEMBERSHIP_RETRY_DELAY_MS: "5000"
     steps:
       - name: Validate PR metadata conventions
         uses: actions/github-script@v7
@@ -104,30 +106,64 @@ jobs:
               errors.push("At least one Linear reference is required (example: CE-189).");
             }
 
-            try {
-              const projectData = await github.graphql(
-                `
-                query ($id: ID!) {
-                  node(id: $id) {
-                    ... on PullRequest {
-                      projectItems(first: 20) {
-                        nodes {
-                          project {
-                            title
-                          }
+            const projectItemsQuery = `
+              query ($id: ID!) {
+                node(id: $id) {
+                  ... on PullRequest {
+                    projectItems(first: 20) {
+                      nodes {
+                        project {
+                          title
                         }
                       }
                     }
                   }
                 }
-                `,
-                { id: pr.node_id },
-              );
+              }
+            `;
 
-              const items = projectData.node?.projectItems?.nodes ?? [];
-              const hasRequiredProject = items.some(
-                (item) => item?.project?.title === process.env.REQUIRED_PROJECT_TITLE,
-              );
+            const parsePositiveInt = (value, fallback) => {
+              const parsed = Number.parseInt(String(value ?? ""), 10);
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+            };
+
+            const parseNonNegativeInt = (value, fallback) => {
+              const parsed = Number.parseInt(String(value ?? ""), 10);
+              return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+            };
+
+            const retryEligibleActions = new Set(["opened", "reopened", "labeled"]);
+            const action = String(context.payload.action || "").toLowerCase();
+            const maxAttempts = retryEligibleActions.has(action)
+              ? parsePositiveInt(process.env.PROJECT_MEMBERSHIP_RETRY_ATTEMPTS, 6)
+              : 1;
+            const retryDelayMs = parseNonNegativeInt(
+              process.env.PROJECT_MEMBERSHIP_RETRY_DELAY_MS,
+              5000,
+            );
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            try {
+              let hasRequiredProject = false;
+
+              for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                const projectData = await github.graphql(projectItemsQuery, { id: pr.node_id });
+                const items = projectData.node?.projectItems?.nodes ?? [];
+                hasRequiredProject = items.some(
+                  (item) => item?.project?.title === process.env.REQUIRED_PROJECT_TITLE,
+                );
+
+                if (hasRequiredProject) {
+                  break;
+                }
+
+                if (attempt < maxAttempts) {
+                  core.info(
+                    `Project assignment not visible yet (attempt ${attempt}/${maxAttempts}). Retrying in ${retryDelayMs}ms...`,
+                  );
+                  await sleep(retryDelayMs);
+                }
+              }
 
               if (!hasRequiredProject) {
                 errors.push(
