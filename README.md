@@ -152,3 +152,16 @@ Required repository secret:
 Current target project:
 - Owner: `crisesarmiento`
 - Project number: `2` (`Invoice Scope Roadmap`)
+
+## PR Metadata Policy (GitHub + Linear Alignment)
+This repo includes:
+- `.github/pull_request_template.md` to standardize PR content.
+- `.github/workflows/pr-metadata-guard.yml` to enforce required metadata on every pull request.
+
+Required PR metadata:
+- Milestone assigned
+- At least one assignee
+- Labels covering all three categories: `type/*`, `area/*`, `effort/*`
+- Linked GitHub issues (including at least one closing keyword like `Closes #6`)
+- Linked Linear issue references (for example `CE-189` or a Linear URL)
+- PR added to GitHub project `Invoice Scope Roadmap`

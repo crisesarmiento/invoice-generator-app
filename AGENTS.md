@@ -62,3 +62,10 @@ Last updated: February 17, 2026
 - Never store API keys/tokens in committed files.
 - Keep Linear/GitHub mapping deterministic and idempotent.
 - If milestone names change in GitHub, update Linear milestones and sync mapping.
+- For every pull request, populate all project metadata fields:
+  - Milestone
+  - Assignee
+  - Labels: `type/*`, `area/*`, `effort/*`
+  - Linked GitHub issue(s) with at least one closing keyword
+  - Linked Linear issue references (for example `CE-###`)
+  - Add PR to project `Invoice Scope Roadmap`
