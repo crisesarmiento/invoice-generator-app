@@ -2,7 +2,6 @@
 
 import {
   Suspense,
-  type ComponentProps,
   useState,
   useTransition,
 } from "react";
@@ -14,10 +13,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-type FormSubmitEvent = Parameters<
-  NonNullable<ComponentProps<"form">["onSubmit"]>
->[0];
+import type { FormSubmitEvent } from "@/types/form";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();

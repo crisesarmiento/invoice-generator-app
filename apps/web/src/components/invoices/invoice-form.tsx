@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/format";
+import type { FormSubmitEvent } from "@/types/form";
 
 type ClientOption = {
   id: string;
@@ -55,10 +56,6 @@ type InvoiceFormProps = {
     items: InvoiceItem[];
   };
 };
-
-type FormSubmitEvent = Parameters<
-  NonNullable<ComponentProps<"form">["onSubmit"]>
->[0];
 
 const emptyItem = (): InvoiceItem => ({
   description: "",

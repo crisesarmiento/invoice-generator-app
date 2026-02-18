@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 
 import { requestPasswordResetAction } from "@/actions/auth";
@@ -8,11 +8,9 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { FormSubmitEvent } from "@/types/form";
 
 export default function ForgotPasswordPage() {
-  type FormSubmitEvent = Parameters<
-    NonNullable<ComponentProps<"form">["onSubmit"]>
-  >[0];
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
