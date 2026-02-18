@@ -1,10 +1,12 @@
 import {
   Document,
+  type DocumentProps,
   Page,
   StyleSheet,
   Text,
   View,
 } from "@react-pdf/renderer";
+import type { ReactElement } from "react";
 
 type InvoicePdfItem = {
   description: string;
@@ -94,7 +96,9 @@ const styles = StyleSheet.create({
   },
 });
 
-export const InvoicePdf = ({ data }: { data: InvoicePdfData }) => (
+export const renderInvoicePdf = (
+  data: InvoicePdfData,
+): ReactElement<DocumentProps> => (
   <Document>
     <Page size="A4" style={styles.page}>
       <View style={styles.header}>

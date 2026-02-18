@@ -1,0 +1,203 @@
+name: PR Metadata Guard
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+      - assigned
+      - unassigned
+
+permissions:
+  contents: read
+  pull-requests: read
+  repository-projects: read
+
+jobs:
+  validate-pr-metadata:
+    runs-on: ubuntu-latest
+    env:
+      REQUIRED_PROJECT_TITLE: "Invoice Scope Roadmap"
+      PROJECT_MEMBERSHIP_RETRY_ATTEMPTS: "6"
+      PROJECT_MEMBERSHIP_RETRY_DELAY_MS: "5000"
+    steps:
+      - name: Validate PR metadata conventions
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN || github.token }}
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.setFailed("No pull request payload found.");
+              return;
+            }
+
+            const errors = [];
+            const warnings = [];
+            const body = (pr.body || "").trim();
+            const labels = (pr.labels || [])
+              .map((label) => String(label.name || "").toLowerCase())
+              .filter(Boolean);
+
+            const hasHeading = (heading) =>
+              new RegExp(`(^|\\n)##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(body);
+
+            if (!pr.title || !pr.title.trim()) {
+              errors.push("Title is required.");
+            }
+
+            if (!body) {
+              errors.push("Body is required and must follow the PR template.");
+            }
+
+            const requiredHeadings = [
+              "Summary",
+              "Milestone",
+              "Linked GitHub Issues",
+              "Linked Linear Issues",
+              "Validation",
+            ];
+
+            for (const heading of requiredHeadings) {
+              if (!hasHeading(heading)) {
+                errors.push(`Missing section heading: \"## ${heading}\".`);
+              }
+            }
+
+            if (!pr.milestone?.title) {
+              errors.push("Milestone is required.");
+            }
+
+            if ((pr.assignees || []).length === 0) {
+              errors.push("At least one assignee is required.");
+            }
+
+            const hasTypeLabel = labels.some((name) => name.startsWith("type/"));
+            const hasAreaLabel = labels.some((name) => name.startsWith("area/"));
+            const hasEffortLabel = labels.some((name) => name.startsWith("effort/"));
+
+            if (!hasTypeLabel) {
+              errors.push("Missing required label category: type/*.");
+            }
+            if (!hasAreaLabel) {
+              errors.push("Missing required label category: area/*.");
+            }
+            if (!hasEffortLabel) {
+              errors.push("Missing required label category: effort/*.");
+            }
+
+            const hasIssueReference = /#\d+/.test(body);
+            const hasClosingKeyword = /(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#\d+/i.test(body);
+            if (!hasIssueReference) {
+              errors.push("At least one GitHub issue reference is required (example: #6).");
+            }
+            if (!hasClosingKeyword) {
+              errors.push("Use at least one closing keyword for an issue (example: Closes #6).");
+            }
+
+            const hasLinearReference =
+              /\bCE-\d+\b/i.test(body) || /https:\/\/linear\.app\/\S+/i.test(body);
+            if (!hasLinearReference) {
+              errors.push("At least one Linear reference is required (example: CE-189).");
+            }
+
+            const projectItemsQuery = `
+              query ($id: ID!) {
+                node(id: $id) {
+                  ... on PullRequest {
+                    projectItems(first: 20) {
+                      nodes {
+                        project {
+                          title
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const parsePositiveInt = (value, fallback) => {
+              const parsed = Number.parseInt(String(value ?? ""), 10);
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+            };
+
+            const parseNonNegativeInt = (value, fallback) => {
+              const parsed = Number.parseInt(String(value ?? ""), 10);
+              return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+            };
+
+            // These actions are also handled by project-auto-add in a separate workflow.
+            // Enforcement is deferred on these triggers to avoid non-deterministic ordering races.
+            const autoAddOverlapActions = new Set(["opened", "reopened", "labeled"]);
+            const action = String(context.payload.action || "").toLowerCase();
+            const maxAttempts = autoAddOverlapActions.has(action)
+              ? parsePositiveInt(process.env.PROJECT_MEMBERSHIP_RETRY_ATTEMPTS, 6)
+              : 1;
+            const retryDelayMs = parseNonNegativeInt(
+              process.env.PROJECT_MEMBERSHIP_RETRY_DELAY_MS,
+              5000,
+            );
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            try {
+              let hasRequiredProject = false;
+
+              for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                const projectData = await github.graphql(projectItemsQuery, { id: pr.node_id });
+                const items = projectData.node?.projectItems?.nodes ?? [];
+                hasRequiredProject = items.some(
+                  (item) => item?.project?.title === process.env.REQUIRED_PROJECT_TITLE,
+                );
+
+                if (hasRequiredProject) {
+                  break;
+                }
+
+                if (attempt < maxAttempts) {
+                  core.info(
+                    `Project assignment not visible yet (attempt ${attempt}/${maxAttempts}). Retrying in ${retryDelayMs}ms...`,
+                  );
+                  await sleep(retryDelayMs);
+                }
+              }
+
+              if (!hasRequiredProject) {
+                const message =
+                  `Pull request must be added to project: \"${process.env.REQUIRED_PROJECT_TITLE}\".`;
+
+                if (autoAddOverlapActions.has(action)) {
+                  warnings.push(
+                    `${message} Validation on '${action}' deferred to a later PR metadata event because project auto-add runs concurrently.`,
+                  );
+                } else {
+                  errors.push(message);
+                }
+              }
+            } catch (error) {
+              errors.push(
+                `Could not verify project assignment: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+
+            if (errors.length > 0) {
+              await core.summary
+                .addHeading("PR Metadata Validation Failed")
+                .addList(errors)
+                .write();
+              core.setFailed(errors.join("\n"));
+              return;
+            }
+
+            const summary = core.summary.addHeading("PR Metadata Validation Passed");
+            if (warnings.length > 0) {
+              summary.addHeading("Deferred checks", 2).addList(warnings);
+              warnings.forEach((warning) => core.notice(warning));
+            }
+            await summary
+              .addRaw("All required PR metadata fields are present and aligned with project conventions.")
+              .write();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { type FormEventHandler, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -56,6 +56,8 @@ type InvoiceFormProps = {
   };
 };
 
+type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
+
 const emptyItem = (): InvoiceItem => ({
   description: "",
   quantity: 1,
@@ -66,14 +68,13 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [clientOptions, setClientOptions] = useState<ClientOption[]>(clients);
+  const initialIssueDate = invoice?.issueDate ?? new Date().toISOString().slice(0, 10);
   const [clientId, setClientId] = useState(invoice?.clientId ?? "");
-  const [issueDate, setIssueDate] = useState(
-    invoice?.issueDate ?? new Date().toISOString().slice(0, 10),
-  );
+  const [issueDate, setIssueDate] = useState(initialIssueDate);
   const [dueDate, setDueDate] = useState(
     invoice?.dueDate ??
       new Date(
-        Date.now() +
+        new Date(initialIssueDate).getTime() +
           (defaults.defaultDueDays ?? 14) * 24 * 60 * 60 * 1000,
       )
         .toISOString()
@@ -123,7 +124,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
   const removeItem = (index: number) =>
     setItems((prev) => prev.filter((_, idx) => idx !== index));
 
-  const submitInvoice = (event: React.FormEvent<HTMLFormElement>) => {
+  const submitInvoice = (event: FormSubmitEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -156,7 +157,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
     });
   };
 
-  const createClient = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createClient = async (event: FormSubmitEvent) => {
     event.preventDefault();
     const formElement = event.currentTarget;
     const formData = new FormData(event.currentTarget);

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  review_status: true
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "apps/**"
+    - "packages/**"
+    - ".github/workflows/**"
+    - "*.json"
+    - "*.md"
+    - "*.yml"
+    - "*.yaml"
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!**/coverage/**"
+    - "!**/*.lock"
+
+chat:
+  auto_reply: true

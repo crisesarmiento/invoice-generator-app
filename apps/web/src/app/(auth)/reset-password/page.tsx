@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  Suspense,
+  type FormEventHandler,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -10,14 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function ResetPasswordPage() {
+type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
+
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const password = String(formData.get("password") ?? "");
@@ -65,5 +72,24 @@ export default function ResetPasswordPage() {
         </form>
       )}
     </AuthCard>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthCard
+          title="Choose a new password"
+          description="Set a new password to access your account."
+        >
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Loading reset link...
+          </p>
+        </AuthCard>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
