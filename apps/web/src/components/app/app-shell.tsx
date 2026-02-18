@@ -164,6 +164,23 @@ export const AppShell = ({ children, userName }: AppShellProps) => {
                 </Button>
               </div>
               <ShellNav pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+              <div className="mt-auto space-y-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-strong)] p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  Signed in as
+                </p>
+                <p className="truncate text-sm font-medium text-[color:var(--foreground)]">
+                  {userName ?? "Freelancer"}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </Button>
+              </div>
             </aside>
           </div>
         ) : null}
