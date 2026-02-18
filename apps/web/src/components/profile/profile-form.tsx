@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { type ComponentProps, useState, useTransition } from "react";
 
 import { saveProfileAction } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,13 @@ type ProfileFormProps = {
 };
 
 export const ProfileForm = ({ profile }: ProfileFormProps) => {
+  type FormSubmitEvent = Parameters<
+    NonNullable<ComponentProps<"form">["onSubmit"]>
+  >[0];
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     setMessage(null);
     const formData = new FormData(event.currentTarget);

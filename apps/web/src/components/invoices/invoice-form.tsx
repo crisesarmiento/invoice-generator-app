@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEventHandler, useMemo, useState, useTransition } from "react";
+import { type ComponentProps, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -56,7 +56,9 @@ type InvoiceFormProps = {
   };
 };
 
-type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
+type FormSubmitEvent = Parameters<
+  NonNullable<ComponentProps<"form">["onSubmit"]>
+>[0];
 
 const emptyItem = (): InvoiceItem => ({
   description: "",

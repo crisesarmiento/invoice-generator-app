@@ -2,7 +2,7 @@
 
 import {
   Suspense,
-  type FormEventHandler,
+  type ComponentProps,
   useState,
   useTransition,
 } from "react";
@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type FormSubmitEvent = Parameters<FormEventHandler<HTMLFormElement>>[0];
+type FormSubmitEvent = Parameters<
+  NonNullable<ComponentProps<"form">["onSubmit"]>
+>[0];
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
