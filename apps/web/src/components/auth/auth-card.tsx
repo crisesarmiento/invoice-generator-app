@@ -11,18 +11,23 @@ export const AuthCard = ({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) => (
-  <Card className="w-full max-w-md shadow-xl">
+  <Card className="mx-auto w-full max-w-md border-[color:var(--border)] bg-[color:var(--surface)]/95 shadow-[0_24px_60px_-40px_rgba(10,20,34,0.9)] backdrop-blur">
     <CardHeader>
-      <CardTitle className="text-2xl">{title}</CardTitle>
+      <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+        Invoice Scope
+      </p>
+      <CardTitle className="text-2xl" data-font="display">
+        {title}
+      </CardTitle>
       {description ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-[color:var(--muted)]">
           {description}
         </p>
       ) : null}
     </CardHeader>
     <CardContent className="space-y-6">
       {children}
-      {footer ? <div className="text-sm text-slate-500">{footer}</div> : null}
+      {footer ? <div className="text-sm text-[color:var(--muted)]">{footer}</div> : null}
     </CardContent>
   </Card>
 );
