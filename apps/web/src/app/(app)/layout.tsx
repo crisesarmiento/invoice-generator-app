@@ -1,4 +1,4 @@
-import { AppHeader } from "@/components/app/app-header";
+import { AppShell } from "@/components/app/app-shell";
 import { requireUser } from "@/lib/auth";
 
 export default async function AppLayout({
@@ -9,9 +9,6 @@ export default async function AppLayout({
   const user = await requireUser();
 
   return (
-    <div className="min-h-screen">
-      <AppHeader userName={user.name ?? user.email} />
-      <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
-    </div>
+    <AppShell userName={user.name ?? user.email}>{children}</AppShell>
   );
 }
