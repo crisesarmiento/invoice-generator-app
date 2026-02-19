@@ -1,0 +1,38 @@
+name: master-source-guard
+
+on:
+  pull_request_target:
+    branches:
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-development-source:
+    name: enforce-development-source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure PR source branch is development
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [ "${PR_BASE}" != "master" ]; then
+            echo "This workflow only validates PRs targeting master."
+            exit 0
+          fi
+
+          if [ "${PR_HEAD}" != "development" ]; then
+            echo "PRs targeting master must come from development."
+            echo "Current source branch: ${PR_HEAD}"
+            exit 1
+          fi
+
+          echo "Source branch validated: development -> master"
