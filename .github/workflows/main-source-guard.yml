@@ -1,9 +1,9 @@
-name: master-source-guard
+name: main-source-guard
 
 on:
   pull_request_target:
     branches:
-      - master
+      - main
     types:
       - opened
       - reopened
@@ -24,15 +24,15 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.ref }}
           PR_BASE: ${{ github.event.pull_request.base.ref }}
         run: |
-          if [ "${PR_BASE}" != "master" ]; then
-            echo "This workflow only validates PRs targeting master."
+          if [ "${PR_BASE}" != "main" ]; then
+            echo "This workflow only validates PRs targeting main."
             exit 0
           fi
 
           if [ "${PR_HEAD}" != "development" ]; then
-            echo "PRs targeting master must come from development."
+            echo "PRs targeting main must come from development."
             echo "Current source branch: ${PR_HEAD}"
             exit 1
           fi
 
-          echo "Source branch validated: development -> master"
+          echo "Source branch validated: development -> main"

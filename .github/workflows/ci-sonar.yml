@@ -9,7 +9,7 @@ on:
       - ready_for_review
   push:
     branches:
-      - master
+      - main
 
 concurrency:
   group: ci-sonar-${{ github.workflow }}-${{ github.ref }}
