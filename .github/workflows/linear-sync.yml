@@ -19,7 +19,9 @@ jobs:
   sync-github-issue-to-linear:
     runs-on: ubuntu-latest
     concurrency:
-      group: linear-sync-issue-${{ github.event.issue.id }}
+      # Keep closed-state transitions in a separate queue from content updates so
+      # pending closed runs are not replaced by edited/milestoned runs.
+      group: linear-sync-issue-${{ github.event.issue.id }}-${{ contains(fromJSON('["closed"]'), github.event.action) && 'state' || 'content' }}
       cancel-in-progress: false
     env:
       LINEAR_API_URL: https://api.linear.app/graphql
@@ -145,6 +147,128 @@ jobs:
               return match?.id ?? null;
             };
 
+            let latestGithubIssueStatePromise;
+            const getLatestGithubIssueState = async () => {
+              if (!latestGithubIssueStatePromise) {
+                latestGithubIssueStatePromise = github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                });
+              }
+
+              const latestIssue = (await latestGithubIssueStatePromise).data;
+              return latestIssue.state === "closed" ? "closed" : "open";
+            };
+
+            let teamStatesPromise;
+            const getTeamStates = async () => {
+              if (!teamStatesPromise) {
+                teamStatesPromise = linearRequest(
+                  `
+                  query TeamStates($id: String!) {
+                    team(id: $id) {
+                      states {
+                        nodes {
+                          id
+                          name
+                          type
+                        }
+                      }
+                    }
+                  }
+                  `,
+                  { id: process.env.LINEAR_TEAM_ID },
+                );
+              }
+
+              const teamData = await teamStatesPromise;
+              return teamData.team?.states?.nodes ?? [];
+            };
+
+            const getTargetStateForGithubIssueState = async (githubIssueState) => {
+              const states = await getTeamStates();
+              if (githubIssueState === "closed") {
+                return (
+                  states.find((state) => state.type === "completed") ??
+                  states.find((state) => /done|complete/i.test(state.name))
+                );
+              }
+
+              return (
+                states.find((state) => state.type === "unstarted") ??
+                states.find((state) => /todo|backlog|triage/i.test(state.name))
+              );
+            };
+
+            const getLinearIssueState = async (id) => {
+              const data = await linearRequest(
+                `
+                query LinearIssueState($id: String!) {
+                  issue(id: $id) {
+                    id
+                    state {
+                      id
+                      name
+                      type
+                    }
+                  }
+                }
+                `,
+                { id },
+              );
+              return data.issue?.state ?? null;
+            };
+
+            const updateLinearIssueState = async (id, stateId) => {
+              await linearRequest(
+                `
+                mutation UpdateLinearIssueState($id: String!, $input: IssueUpdateInput!) {
+                  issueUpdate(id: $id, input: $input) {
+                    success
+                  }
+                }
+                `,
+                {
+                  id,
+                  input: {
+                    stateId,
+                  },
+                },
+              );
+            };
+
+            const reconcileLinearStateWithGithubIssue = async (id) => {
+              const githubIssueState = await getLatestGithubIssueState();
+              const currentLinearState = await getLinearIssueState(id);
+              const currentType = String(currentLinearState?.type || "").toLowerCase();
+
+              const shouldMoveToCompleted =
+                githubIssueState === "closed" && currentType !== "completed";
+              const shouldReopenFromTerminal =
+                githubIssueState === "open" &&
+                (currentType === "completed" || currentType === "canceled");
+
+              if (!shouldMoveToCompleted && !shouldReopenFromTerminal) {
+                core.info(
+                  `Linear state already aligned (GitHub=${githubIssueState}, Linear=${currentLinearState?.name || "unknown"}).`,
+                );
+                return;
+              }
+
+              const targetState = await getTargetStateForGithubIssueState(githubIssueState);
+              if (!targetState?.id) {
+                throw new Error(
+                  `Could not find Linear state to match GitHub issue state "${githubIssueState}".`,
+                );
+              }
+
+              await updateLinearIssueState(id, targetState.id);
+              core.info(
+                `Reconciled Linear state for issue ${id} -> ${targetState.name} (GitHub=${githubIssueState})`,
+              );
+            };
+
             let linearIssueId = extractLinearId(issue.body);
 
             if (!linearIssueId) {
@@ -218,55 +342,16 @@ jobs:
               return;
             }
 
-            if (eventAction === "closed" || eventAction === "reopened") {
-              const teamData = await linearRequest(
-                `
-                query TeamStates($id: String!) {
-                  team(id: $id) {
-                    states {
-                      nodes {
-                        id
-                        name
-                        type
-                      }
-                    }
-                  }
-                }
-                `,
-                { id: process.env.LINEAR_TEAM_ID },
-              );
-
-              const states = teamData.team?.states?.nodes ?? [];
-              const targetType = eventAction === "closed" ? "completed" : "unstarted";
-              const targetState =
-                states.find((state) => state.type === targetType) ??
-                states.find((state) =>
-                  eventAction === "closed"
-                    ? /done|complete/i.test(state.name)
-                    : /todo|backlog|triage/i.test(state.name),
-                );
-
-              if (!targetState?.id) {
-                throw new Error(`Could not find Linear state for action "${eventAction}".`);
-              }
-
-              await linearRequest(
-                `
-                mutation UpdateLinearIssueState($id: String!, $input: IssueUpdateInput!) {
-                  issueUpdate(id: $id, input: $input) {
-                    success
-                  }
-                }
-                `,
-                {
-                  id: linearIssueId,
-                  input: {
-                    stateId: targetState.id,
-                  },
-                },
-              );
-
-              core.info(`Updated Linear state for issue ${linearIssueId} -> ${targetState.name}`);
+            if (
+              eventAction === "closed" ||
+              eventAction === "reopened" ||
+              eventAction === "edited" ||
+              eventAction === "milestoned" ||
+              eventAction === "demilestoned" ||
+              eventAction === "labeled" ||
+              eventAction === "opened"
+            ) {
+              await reconcileLinearStateWithGithubIssue(linearIssueId);
             }
 
             if (
