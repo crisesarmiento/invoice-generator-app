@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { FormSubmitEvent } from "@/types/form";
 
 type ProfileFormProps = {
   profile?: {
@@ -32,7 +33,7 @@ export const ProfileForm = ({ profile }: ProfileFormProps) => {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     setMessage(null);
     const formData = new FormData(event.currentTarget);

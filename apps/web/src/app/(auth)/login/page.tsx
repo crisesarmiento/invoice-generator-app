@@ -9,13 +9,14 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { FormSubmitEvent } from "@/types/form";
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
