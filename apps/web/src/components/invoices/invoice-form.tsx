@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency } from "@/lib/format";
+import { INVOICE_CURRENCY_LABEL, calculateLineTotal, formatCurrency } from "@/lib/currency";
 import type { FormSubmitEvent } from "@/types/form";
 
 type ClientOption = {
@@ -93,7 +93,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
   const total = useMemo(
     () =>
       items.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
+        (sum, item) => sum + calculateLineTotal(item.quantity, item.unitPrice),
         0,
       ),
     [items],
@@ -368,7 +368,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit price</Label>
+                  <Label>Unit price ({INVOICE_CURRENCY_LABEL})</Label>
                   <Input
                     type="number"
                     min="0"
@@ -382,7 +382,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
                 </div>
                 <div className="flex items-end justify-between gap-3">
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                    {formatCurrency(item.quantity * item.unitPrice)}
+                    {formatCurrency(calculateLineTotal(item.quantity, item.unitPrice))}
                   </div>
                   {items.length > 1 ? (
                     <Button
@@ -399,7 +399,7 @@ export const InvoiceForm = ({ clients, defaults, invoice }: InvoiceFormProps) =>
             ))}
           </div>
           <div className="flex items-center justify-end text-lg font-semibold">
-            Total: {formatCurrency(total)}
+            Total ({INVOICE_CURRENCY_LABEL}): {formatCurrency(total)}
           </div>
         </CardContent>
       </Card>

@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { calculateInvoiceTotal, formatCurrency, INVOICE_CURRENCY_LABEL } from "@/lib/currency";
+import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/auth";
 
 export default async function DashboardPage() {
@@ -24,9 +25,8 @@ export default async function DashboardPage() {
   });
 
   const enrichedInvoices = invoices.map((invoice) => {
-    const total = invoice.items.reduce(
-      (sum, item) => sum + Number(item.lineTotal),
-      0,
+    const total = calculateInvoiceTotal(
+      invoice.items.map((item) => ({ lineTotal: Number(item.lineTotal) })),
     );
     return { ...invoice, total };
   });
@@ -116,7 +116,7 @@ export default async function DashboardPage() {
                       <TableRow>
                         <TableHead>Invoice</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Amount</TableHead>
+                        <TableHead>Amount ({INVOICE_CURRENCY_LABEL})</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead />
                       </TableRow>
