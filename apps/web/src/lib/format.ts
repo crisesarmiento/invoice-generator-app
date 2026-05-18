@@ -1,8 +1,4 @@
-export const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
+export { formatCurrency, INVOICE_CURRENCY, INVOICE_CURRENCY_LABEL } from "./currency";
 
 export const formatDate = (value: Date) =>
   new Intl.DateTimeFormat("en-US", {

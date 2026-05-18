@@ -7,6 +7,7 @@ import {
   View,
 } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
+import { formatCurrency, INVOICE_CURRENCY_LABEL } from "@/lib/currency";
 
 type InvoicePdfItem = {
   description: string;
@@ -113,6 +114,8 @@ export const renderInvoicePdf = (
           <Text>{data.dueDate}</Text>
           <Text style={styles.label}>Status</Text>
           <Text>{data.status}</Text>
+          <Text style={styles.label}>Currency</Text>
+          <Text>{INVOICE_CURRENCY_LABEL}</Text>
         </View>
       </View>
 
@@ -139,15 +142,15 @@ export const renderInvoicePdf = (
         <View style={styles.tableHeader}>
           <Text style={styles.colDescription}>Description</Text>
           <Text style={styles.colQty}>Qty</Text>
-          <Text style={styles.colPrice}>Price</Text>
-          <Text style={styles.colTotal}>Total</Text>
+          <Text style={styles.colPrice}>Price ({INVOICE_CURRENCY_LABEL})</Text>
+          <Text style={styles.colTotal}>Total ({INVOICE_CURRENCY_LABEL})</Text>
         </View>
         {data.items.map((item, index) => (
           <View key={`${item.description}-${index}`} style={styles.tableRow}>
             <Text style={styles.colDescription}>{item.description}</Text>
             <Text style={styles.colQty}>{item.quantity}</Text>
-            <Text style={styles.colPrice}>{item.unitPrice.toFixed(2)}</Text>
-            <Text style={styles.colTotal}>{item.lineTotal.toFixed(2)}</Text>
+            <Text style={styles.colPrice}>{formatCurrency(item.unitPrice)}</Text>
+            <Text style={styles.colTotal}>{formatCurrency(item.lineTotal)}</Text>
           </View>
         ))}
         <View style={styles.totalRow}>

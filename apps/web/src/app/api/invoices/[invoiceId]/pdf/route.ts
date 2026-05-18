@@ -5,7 +5,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/auth";
 import { prisma } from "@invoice/db";
 import { renderInvoicePdf } from "@/lib/pdf/invoice-pdf";
-import { formatCurrency } from "@/lib/format";
+import { calculateInvoiceTotal, formatCurrency } from "@/lib/currency";
 
 const sanitizeFilename = (value: string) =>
   value
@@ -36,9 +36,8 @@ export const GET = async (
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
-  const total = invoice.items.reduce(
-    (sum, item) => sum + Number(item.lineTotal),
-    0,
+  const total = calculateInvoiceTotal(
+    invoice.items.map((item) => ({ lineTotal: Number(item.lineTotal) })),
   );
 
   const invoiceNumber = invoice.number.toString().padStart(3, "0");

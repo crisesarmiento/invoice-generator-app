@@ -4,11 +4,15 @@ import { z } from "zod";
 
 import { InvoiceStatus, Prisma, prisma } from "@invoice/db";
 import { requireUser } from "@/lib/auth";
+import { calculateLineTotal, hasAtMostTwoDecimalPlaces } from "@/lib/currency";
 
 const invoiceItemSchema = z.object({
   description: z.string().min(2).max(240),
   quantity: z.coerce.number().positive(),
-  unitPrice: z.coerce.number().nonnegative(),
+  unitPrice: z.coerce
+    .number()
+    .nonnegative()
+    .refine(hasAtMostTwoDecimalPlaces, "Unit price must be a USD amount with cents precision."),
 });
 
 const invoiceSchema = z.object({
@@ -71,7 +75,7 @@ export const createInvoiceAction = async (
             description: item.description,
             quantity: toDecimal(item.quantity),
             unitPrice: toDecimal(item.unitPrice),
-            lineTotal: toDecimal(item.quantity * item.unitPrice),
+            lineTotal: toDecimal(calculateLineTotal(item.quantity, item.unitPrice)),
             position: index + 1,
           })),
         },
@@ -133,7 +137,7 @@ export const updateInvoiceAction = async (
         description: item.description,
         quantity: toDecimal(item.quantity),
         unitPrice: toDecimal(item.unitPrice),
-        lineTotal: toDecimal(item.quantity * item.unitPrice),
+        lineTotal: toDecimal(calculateLineTotal(item.quantity, item.unitPrice)),
         position: index + 1,
       })),
     });
